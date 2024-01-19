@@ -1,0 +1,9 @@
+triton==2.1.0
+numpy==1.26.1
+torch==2.1.2+cu121
+torchaudio==2.1.2+cu121
+soundfile==0.12.1
+audiomentations==0.34.1
+torch_audiomentations==0.11.0
+rich
+nvidia-dali-cuda120==1.32.0
