@@ -9,17 +9,49 @@
 
 ---
 
+## Contents
+
+- [Contract](#contract)
+- [Install](#install)
+  - [Add to a project (no clone)](#add-to-a-project-no-clone)
+  - [Develop in this repo](#develop-in-this-repo)
+- [Hello world](#hello-world)
+- [Transforms](#transforms)
+- [Benchmarks](#benchmarks)
+- [Development](#development)
+- [Versioning and releases](#versioning-and-releases)
+- [Non-goals](#non-goals)
+- [License](#license)
+
+---
+
 ## Contract
 
 - **Linux x86_64 + CUDA only.** macOS / Windows / CPU-only / ROCm are out of scope. Every transform allocates its scratch buffers as `device='cuda'` in the constructor.
-- **Batch-shaped tensors.** `samples` is a contiguous `(B, T)` `torch.Tensor`. `Clip` and `Gain` preserve `(B, T)`; the four FIR filters return `(B, 1, T_out)` because of the FFT-conv1d shape change.
+- **Batch-shaped tensors.** `samples` is a contiguous `(B, T)` `torch.Tensor`. `Clip`, `Gain`, `PolarityInversion`, `Reverse`, and `AddBackgroundNoise` preserve `(B, T)`; the four FIR filters return `(B, 1, T_out)` because of the FFT-conv1d shape change.
 - **No allocation on the hot path.** Every transform preallocates random / scratch / window / time buffers in `__init__`. The steady-state call is a `uniform_` fill plus a kernel launch.
 - **Preallocated batch cap.** Random-parameter transforms ship `buffer_size=129`; runtime asserts `num_audios <= buffer_size`. Raise it in the constructor for larger batches.
 - **No reproducibility plumbing.** `random.random()` and `tensor.uniform_()` draw from the global / CUDA RNG state without seed wiring.
 
 ## Install
 
-This repo is consumed via [`uv`](https://github.com/astral-sh/uv). It is not on PyPI.
+Not on PyPI. Two paths.
+
+### Add to a project (no clone)
+
+```bash
+# uv (recommended; reads [tool.uv] extra-index-url for the dali extra automatically)
+uv add "fast-audiomentations @ git+https://github.com/Lallapallooza/fast-audiomentations"
+uv add "fast-audiomentations[dali] @ git+https://github.com/Lallapallooza/fast-audiomentations"
+uv add "fast-audiomentations @ git+https://github.com/Lallapallooza/fast-audiomentations@v0.1.0"
+
+# pip (the [dali] extra needs the NVIDIA index spelled out)
+pip install git+https://github.com/Lallapallooza/fast-audiomentations
+pip install --extra-index-url https://pypi.nvidia.com \
+    "fast-audiomentations[dali] @ git+https://github.com/Lallapallooza/fast-audiomentations"
+```
+
+### Develop in this repo
 
 ```bash
 git clone https://github.com/Lallapallooza/fast-audiomentations
@@ -85,49 +117,37 @@ mixed = abn(audio, audio_lens, sample_rate=44100)
 |---|---|---|
 | `Clip(min, max, p)` | `(B, T)` | Hard-clip every sample into `[min, max]`. |
 | `Gain(min_gain_in_db, max_gain_in_db, p, buffer_size)` | `(B, T)` | Random per-row gain in dB. |
+| `PolarityInversion(p)` | `(B, T)` | Negate every sample. |
+| `Reverse(p)` | `(B, T)` | Mirror each row across time. |
 | `LowPassFilter(min_cutoff_freq, max_cutoff_freq, num_taps, buffer_size, p)` | `(B, 1, T_out)` | Random-cutoff FIR via FFT conv1d. |
 | `HighPassFilter(...)` | `(B, 1, T_out)` | As above, high-pass. |
 | `BandPassFilter(min_center_freq, max_center_freq, num_taps, buffer_size, p)` | `(B, 1, T_out)` | Random-bandwidth band-pass. |
 | `BandStopFilter(...)` | `(B, 1, T_out)` | As above, band-stop. |
 | `AddBackgroundNoise(noises_dataloader, min_snr, max_snr, p, buffer_size, dtype)` | `(B, T)` | Mixes a random noise row in at a per-row SNR. |
 
-Every transform's `__call__` takes `(samples, sample_rate, inplace=False)`; `AddBackgroundNoise` adds a leading `samples_lens` tensor. `inplace` is honored by `Clip` / `Gain`; the FIR and mix paths cannot do in-place because they reshape or write to a new tensor.
-
-## Versioning and releases
-
-Versions follow [SemVer](https://semver.org). The active source of truth is `pyproject.toml` mirrored to `fast_audiomentations/__init__.py:__version__`.
-
-`commitizen` inspects [Conventional Commits](https://www.conventionalcommits.org) since the last `v*` tag and decides:
-
-- `feat:` -> minor bump
-- `fix:` / `perf:` -> patch bump
-- `BREAKING CHANGE:` footer or `!` after type -> major bump
-- everything else -> no bump
-
-`.github/workflows/release.yml` runs after CI passes on `main`: it calls `uv run cz bump --yes`, pushes the bump commit + tag, builds the wheel + sdist via `uv build`, and creates a GitHub release with notes generated from the commit log. If no commits since the last tag warrant a bump, the job exits cleanly.
-
-To bump locally instead:
-
-```bash
-uv run cz bump --yes
-git push --follow-tags
-```
-
-That pushes the tag manually; the `release-on-tag` job in the same workflow handles building artifacts and publishing the release.
+Every transform's `__call__` takes `(samples, sample_rate, inplace=False)`; `AddBackgroundNoise` adds a leading `samples_lens` tensor. `inplace` is honored by `Clip`, `Gain`, and `PolarityInversion`; the FIR, mix, and reverse paths cannot run in-place because they reshape or need an out-of-place write pattern.
 
 ## Benchmarks
 
-A registry-style harness in `benchmark/` compares each transform against [`audiomentations`](https://github.com/iver56/audiomentations) (CPU) and [`torch-audiomentations`](https://github.com/asteroid-team/torch-audiomentations) (PyTorch on CUDA) across batch sizes `{1, 16, 32, 64, 128}` and `{float32, float16}` for `fast-audiomentations`.
+`bench/` is a single registry that drives both validation and benchmarking against `audiomentations` (CPU) and `torch-audiomentations` (CUDA). One CLI:
 
 ```bash
-uv sync --extra bench
-
-# Edit benchmark/benchmark_data.py to point at your audio fixtures first.
-python -m benchmark.run_all                   # full sweep
-python -m benchmark.clip_benchmark            # one transform
+python -m bench --mode list                            # show every (transform, lib) cell
+python -m bench --mode validate                        # numeric / statistical / skip per row
+python -m bench --mode bench --batch 1,16,64,128 --dtype fp32,fp16
+python -m bench --mode bench --filter Clip,Gain        # subset by transform name
 ```
 
-Recorded results from the original 3090 Ti / i9-12900KF / 64 GB / Samsung 980 PRO host are in `benchmark_local_result/`. Numbers age out across hardware and library versions; treat them as a smoke test, not a contract. Reproduce on your own host before quoting.
+Output goes to `results/<mode>-<git_sha>-<ts>.json`. Each record carries host invariants (GPU model, driver, torch + triton versions, lock hash, git sha) so cross-run comparisons stay honest.
+
+Adding a transform is one tuple in `bench/rows.py`:
+
+```python
+add(
+    Row("Clip", "am",   lambda: am.Clip(a_min=-0.5, a_max=0.5, p=1.0)),
+    Row("Clip", "ours", lambda: fa.Clip(min=-0.5, max=0.5, p=1.0)),
+)
+```
 
 ## Development
 
@@ -143,15 +163,25 @@ uv run mypy
 
 CI (`.github/workflows/ci.yml`) installs only `--only-group dev` and runs the same pipeline; it does not need torch / DALI / triton.
 
-The `.git/hooks/pre-commit.legacy` slot (untracked) is a citor-style local-only hook for AI-tells unicode (em-dashes, smart quotes, arrows) that you opt into per clone. The hook is not part of the repo by design; install your own if you want it.
+## Versioning and releases
+
+Conventional Commits. `feat:` bumps minor, `fix:` / `perf:` bump patch, `!` or `BREAKING CHANGE:` footer bump major; everything else does not bump. `.github/workflows/release.yml` runs `uv run cz bump --yes` after CI passes on `main`, pushes the bump commit and tag, builds via `uv build`, and creates the GitHub release.
+
+To bump locally:
+
+```bash
+uv run cz bump --yes
+git push --follow-tags
+```
+
+`commitizen.version_files` covers `pyproject.toml`, `fast_audiomentations/__init__.py:__version__`, and the install snippet in this README; the bump rewrites all three in lock-step.
 
 ## Non-goals
 
-- CPU fallback path. The transforms are GPU-only and that is the point.
-- Reproducible RNG. Transforms draw from the global random / CUDA RNG state.
-- Drop-in API parity with `audiomentations` or `torch-audiomentations`. Names and call signatures intentionally differ where the GPU-batched contract differs (see Contract above).
+- CPU fallback path. Transforms are GPU-only and that is the point.
+- Reproducible RNG. Transforms draw from the global / CUDA RNG without seed wiring.
+- Drop-in API parity with `audiomentations` or `torch-audiomentations`. Names and call signatures intentionally differ where the GPU-batched contract differs.
 - `Compose` / `OneOf` orchestration wrappers. Not implemented yet.
-- A PyPI release. Consume via `git clone` + `uv sync`.
 
 ## License
 

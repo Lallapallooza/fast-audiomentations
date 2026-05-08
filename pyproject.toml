@@ -122,6 +122,7 @@ tag_format = "v$version"
 version_provider = "pep621"
 version_files = [
     "fast_audiomentations/__init__.py:__version__",
+    "README.md:@v",
 ]
 update_changelog_on_bump = true
 major_version_zero = true
