@@ -1,9 +1,10 @@
 import sys
-from fast_audiomentations.functions.audio_io import load, save
+
 from fast_audiomentations import Clip
+from fast_audiomentations.functions.audio_io import load, save
 
 
-def main(input_path, output_path, batch_size_repeat):
+def main(input_path: str, output_path: str, batch_size_repeat: int) -> None:
     # Load the audio file
     samples, sr = load(input_path)
 
@@ -23,7 +24,9 @@ def main(input_path, output_path, batch_size_repeat):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python -m examples.clip <input_path> <output_path> <batch_size_repeat>")
+        print(
+            "Usage: python -m examples.clip <input_path> <output_path> <batch_size_repeat>"
+        )
         sys.exit(1)
 
     input_path = sys.argv[1]

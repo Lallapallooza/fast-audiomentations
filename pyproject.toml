@@ -1,0 +1,126 @@
+[project]
+name = "fast-audiomentations"
+version = "0.1.0"
+description = "GPU-accelerated audio augmentations via Triton kernels"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.6",
+    "numpy>=1.26",
+    "soundfile>=0.12",
+    "rich>=13",
+]
+
+[project.optional-dependencies]
+dali = [
+    "nvidia-dali-cuda130",
+]
+bench = [
+    "audiomentations>=0.37",
+    "torch-audiomentations>=0.11",
+    "nvidia-dali-cuda130",
+]
+
+[dependency-groups]
+# Tooling for local development and CI. Synced by default on `uv sync`; skip
+# with `uv sync --no-dev`. Kept out of [project.optional-dependencies] because
+# these are not part of the library's distribution surface.
+dev = [
+    "ruff>=0.9",
+    "pre-commit>=4.0",
+    "commitizen>=4.0",
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fast_audiomentations"]
+
+[tool.uv]
+# DALI is published only on the NVIDIA index, not PyPI proper.
+extra-index-url = ["https://pypi.nvidia.com"]
+# Triton ships as a transitive of torch on Linux; do not pin it directly.
+
+# -----------------------------------------------------------------------------
+# Ruff: linter + formatter. Replaces flake8 / pylint / isort / black.
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 79  # PEP 8 strict.
+target-version = "py311"
+extend-exclude = [
+    ".venv",
+    "benchmark_local_result",
+    "tests/data",
+]
+
+[tool.ruff.lint]
+select = [
+    "F", "E", "W", "I", "UP", "B", "C4", "SIM", "PIE", "RET",
+    "RUF", "A", "ARG", "TID", "PERF",
+    "D",  # pydocstyle - public API must be documented (scoped via per-file-ignores).
+]
+ignore = [
+    "E501",    # line-too-long: ruff format handles wrapping; some kernel constants are intentionally long.
+    "E741",    # ambiguous variable name (kernels use single-letter names like l, I, O on purpose).
+    "B008",    # function call in default argument (Triton config patterns use this).
+    "SIM117",  # combine nested with statements - hurts readability when context managers carry meaning.
+    "RET504",  # unnecessary assignment-then-return - reads cleaner with the named local.
+    "PERF203", # try/except in loop - unavoidable in iterator-cycling patterns.
+    "D100",    # missing module docstring - module purpose is in the package docstring.
+    "D104",    # missing __init__.py docstring.
+    "D105",    # missing dunder docstring (__call__ etc) - the class docstring covers it.
+    "D107",    # missing __init__ docstring - the class docstring covers it.
+    "D203",    # one-blank-line-before-class - conflicts with D211 (no blank line).
+    "D213",    # multi-line-summary-second-line - conflicts with D212 (first line).
+]
+
+[tool.ruff.lint.per-file-ignores]
+"fast_audiomentations/transforms/_impl/*.py" = ["B023", "E731", "D", "A002", "ARG005", "RUF005"]
+"benchmark/*.py" = ["F401", "B007", "D"]
+"examples/*.py" = ["F401", "D"]
+"examples/test.py" = ["F403", "D"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fast_audiomentations", "benchmark"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["fast_audiomentations", "examples", "benchmark"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = "fast_audiomentations.transforms._impl.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "triton.*",
+    "nvidia.*",
+    "soundfile.*",
+    "audiomentations.*",
+    "torch_audiomentations.*",
+    "scipy.*",
+]
+ignore_missing_imports = true
+
+# -----------------------------------------------------------------------------
+# Commitizen: conventional commits + version bumping.
+# -----------------------------------------------------------------------------
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_provider = "pep621"
+version_files = [
+    "fast_audiomentations/__init__.py:__version__",
+]
+update_changelog_on_bump = true
+major_version_zero = true

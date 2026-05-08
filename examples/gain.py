@@ -1,10 +1,12 @@
 import sys
-from fast_audiomentations.functions.audio_io import load, save
-from fast_audiomentations import Gain
+
 import torch
 
+from fast_audiomentations import Gain
+from fast_audiomentations.functions.audio_io import load, save
 
-def main(input_path, output_path, batch_size_repeat):
+
+def main(input_path: str, output_path: str, batch_size_repeat: int) -> None:
     # Load the audio file
     samples, sr = load(input_path)
 
@@ -12,7 +14,9 @@ def main(input_path, output_path, batch_size_repeat):
     samples = samples.repeat(batch_size_repeat, 1).contiguous()
 
     # Initialize the Gain augmentation
-    gain = Gain(min_gain_in_db=-12, max_gain_in_db=12, p=1.0, dtype=torch.float32)
+    gain = Gain(
+        min_gain_in_db=-12, max_gain_in_db=12, p=1.0, dtype=torch.float32
+    )
 
     # Apply the gain augmentation
     augmented_samples = gain(samples=samples, sample_rate=sr)
@@ -24,7 +28,9 @@ def main(input_path, output_path, batch_size_repeat):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python -m examples.gain <input_path> <output_path> <batch_size_repeat>")
+        print(
+            "Usage: python -m examples.gain <input_path> <output_path> <batch_size_repeat>"
+        )
         sys.exit(1)
 
     input_path = sys.argv[1]
