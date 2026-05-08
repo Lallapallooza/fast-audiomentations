@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # commitizen needs full history to validate commit messages on PRs.
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dev tooling
+        # Skip torch / DALI / triton (CUDA-only, gigabytes of wheels). The
+        # `--only-group dev` install gives us ruff / pre-commit / commitizen
+        # without the runtime stack; lint and format do not need it.
+        run: uv sync --only-group dev
+
+      - name: Verify uv.lock is fresh
+        run: uv lock --check
+
+      - name: Pre-commit (lint + format)
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+      - name: Validate commit messages (PRs only)
+        if: github.event_name == 'pull_request'
+        run: |
+          uv run cz check --rev-range \
+            "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
