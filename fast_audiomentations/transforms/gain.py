@@ -2,8 +2,8 @@ import random
 
 import torch
 
-from fast_audiomentations.transforms._impl._gain_triton import (
-    apply_gain as _apply_gain_triton,
+from fast_audiomentations.transforms._impl._pointwise_triton import (
+    apply_pointwise as _apply_pointwise_triton,
 )
 
 
@@ -27,7 +27,7 @@ class Gain:
             buffer_size, device="cuda", dtype=dtype
         )
 
-    def __generate_random_amplitude_ratios(
+    def _generate_random_amplitude_ratios(
         self, num_audios: int
     ) -> torch.Tensor:
         # Sample dB in-place, convert to amplitude ratio (10^(dB/20)
@@ -48,8 +48,17 @@ class Gain:
     ) -> torch.Tensor:
         """Multiply ``samples`` by a random per-row gain in dB with probability ``p``."""
         if random.random() < self.p:
-            gain_factors = self.__generate_random_amplitude_ratios(
+            gain_factors = self._generate_random_amplitude_ratios(
                 samples.shape[0]
             )
-            return _apply_gain_triton(samples, gain_factors, inplace=inplace)
+            return _apply_pointwise_triton(
+                samples,
+                gain_factors,
+                0.0,
+                0.0,
+                has_gain=True,
+                has_polarity=False,
+                has_clip=False,
+                inplace=inplace,
+            )
         return samples

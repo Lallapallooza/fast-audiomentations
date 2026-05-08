@@ -2,8 +2,8 @@ import random
 
 import torch
 
-from fast_audiomentations.transforms._impl._clip_triton import (
-    apply_clip as _apply_clip_triton,
+from fast_audiomentations.transforms._impl._pointwise_triton import (
+    apply_pointwise as _apply_pointwise_triton,
 )
 
 
@@ -20,6 +20,16 @@ class Clip:
         self.__max = max
         self.p = p
 
+    @property
+    def min(self) -> float:
+        """Lower clip bound."""
+        return self.__min
+
+    @property
+    def max(self) -> float:
+        """Upper clip bound."""
+        return self.__max
+
     def __call__(
         self,
         samples: torch.Tensor,
@@ -28,7 +38,14 @@ class Clip:
     ) -> torch.Tensor:
         """Hard-clip every row of ``samples`` into ``[min, max]`` with probability ``p``."""
         if random.random() < self.p:
-            return _apply_clip_triton(
-                samples, self.__min, self.__max, inplace=inplace
+            return _apply_pointwise_triton(
+                samples,
+                None,
+                self.__min,
+                self.__max,
+                has_gain=False,
+                has_polarity=False,
+                has_clip=True,
+                inplace=inplace,
             )
         return samples
