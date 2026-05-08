@@ -1,6 +1,6 @@
 [project]
 name = "fast-audiomentations"
-version = "0.1.0"
+version = "0.2.0"
 description = "GPU-accelerated audio augmentations via Triton kernels"
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -8,7 +8,7 @@ from fast_audiomentations.transforms.gain import Gain
 from fast_audiomentations.transforms.high_pass_filter import HighPassFilter
 from fast_audiomentations.transforms.low_pass_filter import LowPassFilter
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "AddBackgroundNoise",
     "BandPassFilter",
