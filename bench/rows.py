@@ -99,11 +99,29 @@ add(
 )
 
 # --- AddGaussianSNR -----------------------------------------------------------
+# torch_audiomentations.AddColoredNoise with f_decay=0 is white (Gaussian-iid)
+# noise scaled to a target SNR -- behaviourally equivalent to am.AddGaussianSNR.
 add(
     Row(
         "AddGaussianSNR",
         "am",
         lambda: am.AddGaussianSNR(min_snr_db=20.0, max_snr_db=20.0, p=1.0),
+        validator="statistical",
+        n_trials=200,
+        moment_tol=0.10,
+    ),
+    Row(
+        "AddGaussianSNR",
+        "ta",
+        lambda: ta.AddColoredNoise(
+            min_snr_in_db=20.0,
+            max_snr_in_db=20.0,
+            min_f_decay=0.0,
+            max_f_decay=0.0,
+            sample_rate=44100,
+            p=1.0,
+            output_type="tensor",
+        ),
         validator="statistical",
         n_trials=200,
         moment_tol=0.10,
@@ -336,6 +354,9 @@ add(
         batches=(128,),
         note="stochastic noise selection",
     ),
+    # ta.AddBackgroundNoise is unusable on torchaudio>=2.11 -- it calls
+    # torchaudio.info(), which was removed when the legacy soundfile/sox
+    # backends were dropped (see CLAUDE.md "Knowledge reminders").
     Row(
         "AddBackgroundNoise",
         "ours",
@@ -378,7 +399,23 @@ add(
         validator="statistical",
         n_trials=200,
         moment_tol=0.15,
-    )
+    ),
+    Row(
+        "AddColorNoise",
+        "ta",
+        lambda: ta.AddColoredNoise(
+            min_snr_in_db=20.0,
+            max_snr_in_db=20.0,
+            min_f_decay=0.0,
+            max_f_decay=0.0,
+            sample_rate=44100,
+            p=1.0,
+            output_type="tensor",
+        ),
+        validator="statistical",
+        n_trials=200,
+        moment_tol=0.15,
+    ),
 )
 add(
     Row(

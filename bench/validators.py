@@ -87,7 +87,12 @@ def statistical(
     cand_mean, cand_std = float(cand_flat.mean()), float(cand_flat.std())
     ref_mean, ref_std = float(ref_flat.mean()), float(ref_flat.std())
 
-    mean_err = abs(cand_mean - ref_mean) / max(abs(ref_mean), 1e-9)
+    # For zero-mean signals (e.g. Gaussian noise) the mean is dominated by
+    # FP roundoff and a relative-mean error is meaningless; normalise by std
+    # instead, so the comparison is in std-deviation units when the mean is
+    # near zero.
+    mean_scale = max(abs(ref_mean), abs(ref_std), 1e-9)
+    mean_err = abs(cand_mean - ref_mean) / mean_scale
     std_err = abs(cand_std - ref_std) / max(abs(ref_std), 1e-9)
 
     try:

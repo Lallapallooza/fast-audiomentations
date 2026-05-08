@@ -361,12 +361,24 @@ def _run_bench(
                             **stats,
                         }
                     )
+                    print(
+                        f"  {r.name:<24} b={batch:<4} {dtype:<5} "
+                        f"{r.lib:<6} median={stats['median_us']:8.2f}us  "
+                        f"p95={stats['p95_us']:8.2f}us",
+                        flush=True,
+                    )
                 except Exception as e:
                     err = _error_record(
                         r, batch, "bench", f"{type(e).__name__}: {e}"
                     )
                     err["dtype"] = dtype
                     out.append(err)
+                    print(
+                        f"  {r.name:<24} b={batch:<4} {dtype:<5} "
+                        f"{r.lib:<6} FAIL: {type(e).__name__}: {e}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
     return out
 
 
