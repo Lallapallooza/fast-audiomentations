@@ -30,10 +30,13 @@ class Gain:
     def __generate_random_amplitude_ratios(
         self, num_audios: int
     ) -> torch.Tensor:
+        # Sample dB in-place, convert to amplitude ratio (10^(dB/20)
+        # = exp(dB * ln(10)/20)) so the kernel multiplies directly.
         assert num_audios <= self.random_buffer.size(0)
 
         buf_slice = self.random_buffer[:num_audios]
         buf_slice.uniform_(self.min_gain_in_db, self.max_gain_in_db)
+        buf_slice.mul_(0.11512925464970228).exp_()
 
         return buf_slice
 
