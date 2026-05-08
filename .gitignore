@@ -162,6 +162,16 @@ cython_debug/
 # direnv local cache
 .direnv/
 
+# bench harness output (per-run, host-specific; do not version)
+results/
+
+# tooling caches
+.mypy_cache/
+.ruff_cache/
+
+# vs-core artifacts (per-developer working notes)
+.spec/
+
 # uv-managed venv (already covered by .venv/ above, kept here for clarity)
 
 # triton autotune cache (out-of-tree, listed for clarity)

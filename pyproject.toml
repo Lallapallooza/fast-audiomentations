@@ -94,7 +94,7 @@ line-ending = "lf"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["fast_audiomentations", "examples", "benchmark"]
+files = ["fast_audiomentations", "examples", "bench"]
 strict = true
 
 [[tool.mypy.overrides]]
@@ -111,6 +111,7 @@ module = [
     "scipy.*",
 ]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 # -----------------------------------------------------------------------------
 # Commitizen: conventional commits + version bumping.

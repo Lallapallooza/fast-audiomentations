@@ -155,7 +155,7 @@ class AddBackgroundNoise:
             audio, _sr = fn.decoders.audio(
                 encoded, dtype=types.FLOAT, downmix=True
             )
-            audio_length = fn.shapes(audio)
+            audio_length = fn.shapes(audio)  # type: ignore[attr-defined]
             return audio, audio_length
 
         pipe = audio_pipeline(
