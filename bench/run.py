@@ -345,6 +345,8 @@ def _run_bench(
             for r in rows:
                 if r.lib == "am" and dtype == "fp16":
                     continue  # audiomentations is float32-only
+                if r.batches is not None and batch not in r.batches:
+                    continue
                 try:
                     stats = _bench_one(
                         r, x_np, x_t, iters=iters, warmup=warmup

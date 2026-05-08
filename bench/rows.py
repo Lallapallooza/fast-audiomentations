@@ -16,6 +16,8 @@ so the transform reduces to a fixed deterministic operation.
 
 from __future__ import annotations
 
+from typing import Any
+
 import audiomentations as am
 import torch_audiomentations as ta
 
@@ -283,18 +285,75 @@ add(
 # Tier 2: useful augmentations, no GPU baseline (ours = None today).
 # =============================================================================
 
+
+# --- AddBackgroundNoise -------------------------------------------------------
+# Both libs need a noise corpus on disk. For ``ours``, the default torch
+# DataLoader does per-call disk I/O which would dominate the measurement and
+# bench the loader instead of the mix kernel. ``_CachedNoiseLoader`` pre-loads
+# one noise file into a CPU tensor and yields the same (batch_size, T) pair on
+# every ``next()``, isolating the kernel cost.
+class _CachedNoiseLoader:
+    """Infinite iterator yielding a fixed CUDA (batch, T) noise pair.
+
+    Pre-loaded once on GPU. AddBackgroundNoise's ``_next_torch_batch`` does
+    ``.to('cuda', non_blocking=True)``; that is a no-op on tensors already
+    resident on CUDA, so the bench measures the mix kernel cost only, not
+    a per-call host->device copy.
+    """
+
+    def __init__(self, noise_path: str, batch_size: int) -> None:
+        import soundfile as sf
+        import torch as _torch
+
+        samples, _sr = sf.read(noise_path, dtype="float32")
+        self._noise_batch = (
+            _torch.from_numpy(samples)
+            .unsqueeze(0)
+            .expand(batch_size, -1)
+            .contiguous()
+            .to("cuda")
+        )
+        self._lens = _torch.full(
+            (batch_size,),
+            self._noise_batch.shape[1],
+            dtype=_torch.int64,
+            device="cuda",
+        )
+
+    def __iter__(self) -> _CachedNoiseLoader:
+        return self
+
+    def __next__(self) -> tuple[Any, Any]:
+        return self._noise_batch, self._lens
+
+
 add(
     Row(
         "AddBackgroundNoise",
         "am",
         lambda: am.AddBackgroundNoise(sounds_path="tests/data", p=1.0),
         validator="skip",
-        note="Requires a directory; skip validation",
-    )
+        batches=(128,),
+        note="stochastic noise selection",
+    ),
+    Row(
+        "AddBackgroundNoise",
+        "ours",
+        lambda: fa.AddBackgroundNoise(
+            noises_dataloader=_CachedNoiseLoader(
+                "tests/data/44k_noise.wav", batch_size=128
+            ),
+            min_snr=10.0,
+            max_snr=10.0,
+            p=1.0,
+            buffer_size=128,
+        ),
+        adapter="with_lens",
+        validator="skip",
+        batches=(128,),
+        note="stochastic noise selection",
+    ),
 )
-# ours has AddBackgroundNoise but its API needs a noise corpus + samples_lens;
-# wiring it through this harness needs a non-default fixture. Skipped from rows
-# for now -- benchmark separately via examples/.
 
 add(
     Row(

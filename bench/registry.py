@@ -37,6 +37,9 @@ class Row:
     moment_tol: float = 0.05
     adapter: Adapter = "default"
     note: str = ""
+    # Restrict the row to specific batch sizes (e.g. AddBackgroundNoise's
+    # dataloader has a fixed batch_size). ``None`` means "every batch".
+    batches: tuple[int, ...] | None = None
 
 
 ROWS: list[Row] = []
